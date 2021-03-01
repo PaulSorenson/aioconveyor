@@ -12,7 +12,7 @@ The embedded `main()` has a simple producer that generates strings every 5 secon
 
 I have a number of systems around my house and beyond which I just need to poll every 30 seconds or so and then write the data to a number of systems such as postgresql, mqtt, csv, console etc.
 
-I wrote the first one before `asyncio` was even a thing in python to poll my solar PV inverter, and then I rewrote it as an asynchronous model. I have several apps where the loop/scheduler all look the same - only the data and the collection look different.
+I wrote the first one before `asyncio` was even a thing in python to poll my solar PV inverter, then later rewrote it as an asynchronous model. I have several apps where the loop/scheduler all look the same - only the data and the collection look different.
 
 It was a very simple matter to migrate existing apps to `aioconveyor`. Since it allows an arbitrary number of consumers, I quickly realized adding `mqtt` consumers alongside my postgresql writers I could easily integrate custom data with homeassistant.
 
@@ -57,7 +57,7 @@ async def consume(data: str, event_time: datetime) -> int:
 
 ## structure
 
-The code is pretty simple and shouldn't be too hard to follow, although with asyncio, the call flow is sometimes not so obvious if you haven't been exposed to asyncio before.
+The code is pretty simple and shouldn't be too hard to follow, although with asyncio, the call flow is sometimes not so obvious if you haven't been exposed to it before.
 
 1. The asyncio loop is run in a daemon thread. That is not abolutely necessary but I wanted the main thread to be isolated from any blocking from badly behaved coroutines.
 2. This makes the start up slightly involved beacause aside from a couple of thread safe entry points in the asyncio package - in general it is not thread safe. Having said that you can ignore most of that. The code snippet above shows the minimal inputs for `AioConveyor`.
