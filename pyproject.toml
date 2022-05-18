@@ -1,3 +1,14 @@
+[tool.poetry]
+name = "aioconveyor"
+version = "0.1.0"
+description = "asyncio long running data collection and storage"
+authors = ["paul sorenson <paul@metrak.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+[tool.poetry.dev-dependencies]
+
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

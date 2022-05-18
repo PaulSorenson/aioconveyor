@@ -1,0 +1,11 @@
+.hg/
+.mypy_cache/
+
+.hgignore
+
+*.egg-info
+*.gz
+*.log
+*.pyc
+*.tgz
+*.whl
