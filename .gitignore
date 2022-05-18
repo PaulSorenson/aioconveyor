@@ -4,5 +4,8 @@
 .hgignore
 
 *.egg-info
+*.gz
 *.log
 *.pyc
+*.tgz
+*.whl

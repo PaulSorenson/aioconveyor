@@ -12,7 +12,15 @@ from datetime import datetime, timezone
 from functools import partial
 from threading import Thread
 from time import time
-from typing import Any, AsyncGenerator, Awaitable, Coroutine, Optional, Sequence, Tuple
+from typing import (  # noqa: TYP001
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Optional,
+    Sequence,
+)
 
 log = logging.getLogger(__file__)
 logging.basicConfig(level=logging.INFO)
@@ -25,6 +33,10 @@ class Event:
     loop_counter: int
 
 
+TProducer = Callable[[Event], Coroutine[Any, Any, str]]
+TConsumer = Callable[[Event, str], Coroutine[Any, Any, int]]
+
+
 class AioConveyor:
     """Async producer/consumer class
 
@@ -34,7 +46,7 @@ class AioConveyor:
     def __init__(
         self,
         produce: Awaitable,
-        consumers: Optional[Sequence[Coroutine]],
+        consumers: Sequence[TConsumer],
         loop_interval: float,
         loop_offset: float = 0,
     ) -> None:
@@ -64,7 +76,10 @@ class AioConveyor:
         self.stopped = False
 
     def loop_time(
-        self, loop_interval: int, loop_offset: int = 0, t_now: Optional[float] = None
+        self,
+        loop_interval: int,
+        loop_offset: int = 0,
+        t_now: Optional[float] = None,
     ) -> float:
         """calculate next absolute time for a loop timer.
 
@@ -94,7 +109,8 @@ class AioConveyor:
         """
         while True:
             t_event = self.loop_time(
-                loop_interval=self.loop_interval, loop_offset=self.loop_offset
+                loop_interval=self.loop_interval,
+                loop_offset=self.loop_offset,
             )
             log.debug(f"t_event: {t_event}")
             yield t_event
@@ -106,11 +122,14 @@ class AioConveyor:
             # non naive datetime for timestamp field in result data
             event_time: datetime = datetime.fromtimestamp(t_event, tz=timezone.utc)
             log.info(
-                f"scheduler: next event: {event_time}, {t_event - time():.2f} sec from now"
+                f"scheduler: next event: {event_time}, "
+                f"{t_event - time():.2f} sec from now",
             )
             delta = t_event - time()
             if delta < 0:
-                log.warning(f"skipping loop event at {t_event} because it is in the past")
+                log.warning(
+                    f"skipping loop event at {t_event} because it is in the past",
+                )
                 await asyncio.sleep(0.2)
                 continue
             event = Event(event_time, loop_counter)
@@ -194,7 +213,7 @@ class AioConveyor:
         self.stopped = True
 
 
-class AioGenConveyor(AioConveyor):
+class AioGenConveyor:
     """Async producer/consumer class
 
     Async loop is run in daemon thread so main thread can do other work.
@@ -207,8 +226,8 @@ class AioGenConveyor(AioConveyor):
 
     def __init__(
         self,
-        produce: Awaitable,
-        consumers: Optional[Sequence[Coroutine]],
+        produce: TProducer,
+        consumers: Sequence[TConsumer],
         loop_interval: float,
         loop_offset: float = 0,
     ) -> None:
@@ -230,7 +249,7 @@ class AioGenConveyor(AioConveyor):
             apparently we need to wait for two minutes for the data from the end of
             the period.
         """
-        self.produce = produce
+        self.produce: TProducer = produce
         self.consumers = consumers if consumers is not None else [consume]
         self.loop_interval = loop_interval
         self.loop_offset = loop_offset
@@ -238,7 +257,10 @@ class AioGenConveyor(AioConveyor):
         self.stopped = False
 
     def loop_time(
-        self, loop_interval: int, loop_offset: int = 0, t_now: Optional[float] = None
+        self,
+        loop_interval: int,
+        loop_offset: int = 0,
+        t_now: Optional[float] = None,
     ) -> float:
         """calculate next absolute time for a loop timer.
 
@@ -268,12 +290,13 @@ class AioGenConveyor(AioConveyor):
         """
         while True:
             t_event = self.loop_time(
-                loop_interval=self.loop_interval, loop_offset=self.loop_offset
+                loop_interval=self.loop_interval,
+                loop_offset=self.loop_offset,
             )
             log.debug(f"t_event: {t_event}")
             yield t_event
 
-    async def event_generator(self) -> AsyncGenerator[None, Event]:
+    async def event_generator(self) -> AsyncGenerator[Event, None]:
         """Generator that yields events.
 
         Schedules the producer
@@ -283,11 +306,14 @@ class AioGenConveyor(AioConveyor):
             # non naive datetime for timestamp field in result data
             event_time: datetime = datetime.fromtimestamp(t_event, tz=timezone.utc)
             log.info(
-                f"scheduler: next event: {event_time}, {t_event - time():.2f} sec from now"
+                f"scheduler: next event: {event_time}, "
+                "{t_event - time():.2f} sec from now",
             )
             delta = t_event - time()
             if delta < 0:
-                log.warning(f"skipping loop event at {t_event} because it is in the past")
+                log.warning(
+                    f"skipping loop event at {t_event} because it is in the past",
+                )
                 await asyncio.sleep(0.2)
                 continue
             event = Event(event_time, loop_counter)
@@ -298,7 +324,7 @@ class AioGenConveyor(AioConveyor):
     async def production_scheduler(
         self,
         queue: asyncio.Queue,
-        event_generator: AsyncGenerator[None, Event],
+        event_generator: AsyncGenerator[Event, None],
     ):
         """skeleton producer
 
@@ -314,7 +340,7 @@ class AioGenConveyor(AioConveyor):
         async for event in event_generator:
             log.debug(f">>> production_scheduler: event: {(event)}")
             print()
-            payload = await self.produce(event=event)
+            payload = await self.produce(event)
             await queue.put((event, payload))
 
     async def consumer_loop(self, queue: asyncio.Queue) -> None:
@@ -322,8 +348,7 @@ class AioGenConveyor(AioConveyor):
             event, payload = await queue.get()
             log.debug(f"consumer_loop de queued: {event.loop_counter}")
             cons_tasks = [
-                asyncio.create_task(c(event=event, payload=payload))
-                for c in self.consumers
+                asyncio.create_task(c(event, payload)) for c in self.consumers
             ]
             results = await asyncio.gather(*cons_tasks)
             log.info(f"scheduler: consumers completed with: {results}")
@@ -337,7 +362,8 @@ class AioGenConveyor(AioConveyor):
         queue = asyncio.Queue()
         try:
             producer = asyncio.create_task(
-                self.production_scheduler(queue, self.event_generator()), name="producer"
+                self.production_scheduler(queue, self.event_generator()),
+                name="producer",
             )
             consumer = asyncio.create_task(self.consumer_loop(queue), name="consumer")
             watchdog = asyncio.create_task(self.watchdog(), name="watchdog")
