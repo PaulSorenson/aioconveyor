@@ -1,0 +1,8 @@
+.hg/
+.mypy_cache/
+
+.hgignore
+
+*.egg-info
+*.log
+*.pyc
