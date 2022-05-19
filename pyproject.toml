@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aioconveyor"
-version = "0.1.0"
+version = "0.1.1"
 description = "asyncio long running data collection and storage"
 authors = ["paul sorenson <paul@metrak.com>"]
 
